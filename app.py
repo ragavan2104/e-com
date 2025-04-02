@@ -210,17 +210,40 @@ def home():
 @app.route('/products')
 def products():
     try:
+        page = request.args.get('page', 1, type=int)
+        per_page = 8  # Number of products per page
+        
         with closing(get_db()) as db:
-            # Get all active products
+            # Get total count of active products
+            total = db.execute('SELECT COUNT(*) FROM products WHERE is_active = 1').fetchone()[0]
+            
+            # Calculate offset for pagination
+            offset = (page - 1) * per_page
+            
+            # Get paginated products
             products = db.execute('''
                 SELECT * FROM products 
                 WHERE is_active = 1 
                 ORDER BY created_at DESC
-            ''').fetchall()
-        return render_template('products.html', products=products)
+                LIMIT ? OFFSET ?
+            ''', (per_page, offset)).fetchall()
+            
+            # Create pagination object
+            pagination = {
+                'page': page,
+                'per_page': per_page,
+                'total': total,
+                'pages': (total + per_page - 1) // per_page,
+                'has_prev': page > 1,
+                'has_next': page * per_page < total,
+                'prev_num': page - 1,
+                'next_num': page + 1
+            }
+            
+        return render_template('products.html', products=products, pagination=pagination)
     except sqlite3.OperationalError:
         flash('Database error. Please try again.', 'danger')
-        return render_template('products.html', products=[])
+        return render_template('products.html', products=[], pagination=None)
 
 @app.route('/product/<int:product_id>')
 def product_detail(product_id):
