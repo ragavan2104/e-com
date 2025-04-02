@@ -209,9 +209,10 @@ def home():
 
 @app.route('/products')
 def products():
+    per_page = 8  # Move this outside the try block so it's always available
+    
     try:
         page = request.args.get('page', 1, type=int)
-        per_page = 8  # Number of products per page
         
         with closing(get_db()) as db:
             # Get total count of active products
@@ -236,14 +237,27 @@ def products():
                 'pages': (total + per_page - 1) // per_page,
                 'has_prev': page > 1,
                 'has_next': page * per_page < total,
-                'prev_num': page - 1,
+                'prev_num': page - 1 if page > 1 else 1,
                 'next_num': page + 1
             }
             
         return render_template('products.html', products=products, pagination=pagination)
-    except sqlite3.OperationalError:
-        flash('Database error. Please try again.', 'danger')
-        return render_template('products.html', products=[], pagination=None)
+    
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        # Return empty products list and basic pagination object if there's an error
+        return render_template('products.html', 
+                            products=[], 
+                            pagination={
+                                'page': 1,
+                                'per_page': per_page,
+                                'total': 0,
+                                'pages': 1,
+                                'has_prev': False,
+                                'has_next': False,
+                                'prev_num': 1,
+                                'next_num': 1
+                            })
 
 @app.route('/product/<int:product_id>')
 def product_detail(product_id):
